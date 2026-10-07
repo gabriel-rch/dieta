@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Dieta">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+<title>Plano de Corte</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: white single column — day timeline (doubles as navigation) → selected meal summary (kcal + macro bar) → food list → day progress. One green accent for "next/selected"; macro hues only in the bars. */
+:root{
+  --bg:#ffffff;
+  --soft:#f6f6f4;
+  --line:#ebebe8;
+  --fg:#1b1b19;
+  --muted:#6f6f6a;
+  --faint:#a3a39d;
+  --accent:#2e6b4a;
+  --accent-soft:#e9f2ec;
+  --m-p:#2e6b4a;
+  --m-c:#c9b98f;
+  --m-f:#d98c5f;
+  --font:"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121211;--soft:#1b1b1a;--line:#2a2a28;--fg:#ededea;--muted:#a1a19b;--faint:#6d6d68;
+  --accent:#7cc39a;--accent-soft:#1d2a22;--m-p:#7cc39a;--m-c:#a89a72;--m-f:#d9946b;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121211;--soft:#1b1b1a;--line:#2a2a28;--fg:#ededea;--muted:#a1a19b;--faint:#6d6d68;
+  --accent:#7cc39a;--accent-soft:#1d2a22;--m-p:#7cc39a;--m-c:#a89a72;--m-f:#d9946b;color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.45;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:560px;margin:0 auto;padding-inline:20px;padding-block:8px 48px}
+.num{font-variant-numeric:tabular-nums}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.label{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+
+header.top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding-block:16px 4px;font-size:14px;color:var(--muted)}
+header.top b{color:var(--fg);font-weight:600}
+
+/* meal chips (navigation) */
+.switch{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);margin-inline:-20px;padding:10px 20px 12px;
+  display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line)}
+.switch::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:92px;padding:9px 14px;
+  border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:inherit;cursor:pointer;text-align:left}
+.chip .t{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;font-weight:500}
+.chip .n{font-size:14px;font-weight:600;white-space:nowrap}
+.chip.done .n{color:var(--muted)}
+.chip[aria-selected="true"]{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+.chip[aria-selected="true"] .t,.chip[aria-selected="true"] .n{color:var(--bg)}
+.chip[aria-selected="true"] .t{opacity:.7}
+.chip.next::after{content:"";position:absolute;top:9px;right:9px;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.chip.next[aria-selected="true"]::after{box-shadow:none}
+
+/* meal summary */
+.meal{margin-top:26px}
+.meal-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.meal h2{margin:4px 0 0;font-size:30px;line-height:1.1;font-weight:700;letter-spacing:-.02em;text-wrap:balance}
+.state{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:3px 10px;border-radius:999px}
+.state:empty{display:none}
+.meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.meta .label{color:var(--muted);letter-spacing:.04em}
+.nav{display:flex;gap:6px;flex:none}
+.nav button{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--bg);color:var(--fg);font:inherit;font-size:18px;cursor:pointer}
+
+.seg{display:flex;gap:4px;margin-top:16px;padding:4px;background:var(--soft);border-radius:10px}
+.seg button{flex:1;min-height:36px;border:0;border-radius:7px;background:none;font:inherit;font-size:14px;font-weight:500;color:var(--muted);cursor:pointer}
+.seg button[aria-checked="true"]{background:var(--bg);color:var(--fg);font-weight:600;box-shadow:0 1px 2px rgb(0 0 0 / .08),0 0 0 1px var(--line)}
+
+.sum{margin-top:18px;display:grid;gap:10px}
+.kcal{display:flex;align-items:baseline;gap:8px}
+.kcal b{font-size:36px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
+.kcal span{color:var(--muted);font-size:15px}
+.bar{display:flex;height:8px;gap:2px;border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%}
+.macros{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.mac{display:grid;gap:1px}
+.mac .k{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.mac .k i{width:8px;height:8px;border-radius:2px}
+.mac .v{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+.mac .v small{font-size:13px;color:var(--faint);font-weight:500;margin-left:4px}
+
+/* foods */
+.foods{margin-top:28px}
+.foods .label{display:block;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.food{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:2px 16px;padding:14px 0;border-bottom:1px solid var(--line)}
+.food .name{font-weight:600}
+.food .qty{grid-column:2;grid-row:1;text-align:right;color:var(--fg);font-variant-numeric:tabular-nums;max-width:16ch}
+.food .note{grid-column:1;font-size:14px;color:var(--muted)}
+.food .swap{grid-column:1 / -1;justify-self:start;margin-top:6px;display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:999px;padding:5px 12px 5px 10px;font:inherit;font-size:13px;font-weight:500;cursor:pointer}
+.food .swap svg{width:14px;height:14px;color:var(--accent)}
+.food .swap span{color:var(--faint)}
+
+/* day */
+.day{margin-top:32px;background:var(--soft);border-radius:14px;padding:18px}
+.day-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.day-row b{font-size:22px;font-variant-numeric:tabular-nums}
+.day-row span{font-size:14px;color:var(--muted)}
+.prog{height:6px;border-radius:3px;background:var(--line);margin:10px 0 16px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.day .macros .v{font-size:16px}
+
+.foot{margin-top:20px;display:grid;gap:10px}
+.install{display:none;width:100%;padding:13px;border:0;border-radius:12px;background:var(--fg);color:var(--bg);font:inherit;font-weight:600;font-size:16px;cursor:pointer}
+.ios-tip{display:none;background:var(--soft);padding:12px 14px;border-radius:12px;font-size:14px;color:var(--muted)}
+
+/* substitution sheet */
+dialog.sheet{border:0;padding:0;margin:auto auto 0;width:100%;max-width:560px;max-height:85vh;background:var(--bg);color:var(--fg);
+  border-radius:18px 18px 0 0;box-shadow:0 -10px 40px rgb(0 0 0 / .14)}
+dialog.sheet::backdrop{background:rgb(20 20 18 / .35)}
+.sheet-in{padding:10px 20px calc(24px + env(safe-area-inset-bottom,0px))}
+.grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 14px}
+.sheet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.sheet-head h4{margin:4px 0 0;font-size:20px;font-weight:700}
+.sheet-head .cur{font-size:14px;color:var(--muted);margin-top:2px}
+.x{flex:none;width:36px;height:36px;border-radius:50%;border:0;background:var(--soft);color:var(--fg);font:inherit;font-size:15px;cursor:pointer}
+.opts{list-style:none;margin:0;padding:0}
+.opts li{padding:13px 0;border-bottom:1px solid var(--line)}
+.sheet-note{margin:12px 0 0;font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){
+  dialog.sheet[open]{animation:up .2s ease-out}
+  @keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span id="today"></span>
+    <b class="num" id="clock"></b>
+  </header>
+
+  <nav class="switch" id="switch" role="tablist" aria-label="Refeições do dia"></nav>
+
+  <main id="main">
+    <section class="meal">
+      <div class="meal-top">
+        <div>
+          <div class="meta"><span class="label num" id="mealTime"></span><span class="state" id="status"></span></div>
+          <h2 id="mealTitle"></h2>
+        </div>
+        <div class="nav">
+          <button id="prev" aria-label="Refeição anterior">‹</button>
+          <button id="next" aria-label="Próxima refeição">›</button>
+        </div>
+      </div>
+      <div class="seg" id="variants" role="radiogroup" aria-label="Opções da refeição" hidden></div>
+      <div class="sum" id="sum"></div>
+    </section>
+
+    <section class="foods">
+      <span class="label">Alimentos</span>
+      <div id="items"></div>
+    </section>
+  </main>
+
+  <section class="day" aria-label="Resumo do dia">
+    <div class="label">Hoje</div>
+    <div id="day"></div>
+  </section>
+
+  <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
+    <div class="sheet-in">
+      <div class="grab" aria-hidden="true"></div>
+      <div class="sheet-head">
+        <div><div class="label">Substituições</div><h4 id="sheetTitle"></h4><div class="cur" id="sheetCur"></div></div>
+        <button class="x" id="sheetClose" aria-label="Fechar">✕</button>
+      </div>
+      <ul class="opts" id="sheetOpts"></ul>
+      <p class="sheet-note">Cada opção tem valor calórico semelhante à porção do plano.</p>
+    </div>
+  </dialog>
+
+  <footer class="foot">
+    <button class="install" id="installBtn">Instalar no celular</button>
+    <div class="ios-tip" id="iosTip">No iPhone: toque em <b>Compartilhar</b> e depois em <b>Adicionar à Tela de Início</b>.</div>
+  </footer>
+</div>
+
+<script>
+const ICON_SWAP='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14l-3-3M20 16H6l3 3"/></svg>';
+const PROT_SUBS=['Patinho moído: 130 g','Tilápia grelhada: 180 g','Atum em água: 1,5 lata'];
+const MEALS=[
+ {id:'cafe',name:'Café da manhã',time:'07:30',kcal:440,p:27,c:55,f:12,items:[
+   {name:'Café',qty:'À vontade, sem açúcar (ou com adoçante)'},
+   {name:'Ovos mexidos',qty:'2 inteiros + 2 claras',note:'Frigideira antiaderente, sem óleo ou com um fio',subs:['2 claras ↔ 1 fatia de queijo minas frescal (30 g)']},
+   {name:'Pão francês',qty:'1 unidade (50 g)',subs:['2 fatias de pão integral','Tapioca: 40 g de goma','Cuscuz: 100 g cozido']},
+   {name:'Mamão papaia',qty:'1 pequeno (~150 g)',subs:['1 banana pequena','2 fatias de melão','1 xícara de morango']},
+   {name:'Aveia em flocos',qty:'1 col. sopa cheia (15 g)',note:'Por cima do mamão'}]},
+ {id:'almoco',name:'Almoço',time:'12:30',kcal:560,p:56,c:57,f:11,items:[
+   {name:'Salada de folhas',qty:'À vontade',note:'Alface, rúcula, tomate, pepino…'},
+   {name:'Abóbora cabotiá cozida',qty:'100 g',subs:['Brócolis, abobrinha ou chuchu, à vontade']},
+   {name:'Filé de frango grelhado',qty:'150 g',subs:PROT_SUBS},
+   {name:'Arroz branco cozido',qty:'120 g (~5 col. sopa)',subs:['Macarrão cozido: 100 g','Batata-doce: 200 g','Batata inglesa: 300 g','Mandioca: 125 g','Cuscuz: 140 g']},
+   {name:'Feijão cozido',qty:'1 concha cheia (~100 g)',subs:['Feijão carioca, lentilha ou grão-de-bico na mesma medida']},
+   {name:'Azeite de oliva',qty:'1 col. chá (5 ml)',note:'Na salada'}]},
+ {id:'lanche',name:'Lanche da tarde',time:'16:00',variants:[
+  {label:'Shake',kcal:390,p:38,c:50,f:4,items:[
+   {name:'Whey protein concentrado',qty:'1 scoop (~30 g)'},
+   {name:'Leite desnatado',qty:'300 ml',subs:['Iogurte natural desnatado: 170 g']},
+   {name:'Banana',qty:'1 média',subs:['1 maçã','1 pera','1 xícara de frutas vermelhas']},
+   {name:'Aveia em flocos',qty:'2 col. sopa (20 g)'},
+   {name:'Creatina',qty:'3–5 g'}]},
+  {label:'Sanduíche',kcal:380,p:38,c:45,f:6,items:[
+   {name:'Pão de forma integral',qty:'2 fatias (50 g)',subs:['1 pão francês (50 g)','Tapioca: 40 g de goma']},
+   {name:'Frango desfiado',qty:'100 g',subs:['Atum em água: 1 lata','Peito de peru: 100 g']},
+   {name:'Banana',qty:'1 média',subs:['1 maçã','1 pera','1 xícara de frutas vermelhas']},
+   {name:'Creatina',qty:'3–5 g',note:'Misture em água'}]}]},
+ {id:'jantar',name:'Jantar',time:'19:30',variants:[
+  {label:'Frango',kcal:410,p:48,c:30,f:10,items:[
+   {name:'Salada de folhas',qty:'À vontade'},
+   {name:'Filé de frango grelhado',qty:'150 g',subs:PROT_SUBS},
+   {name:'Mandioca cozida',qty:'100 g (~4 col. sopa rasas)',subs:['Arroz branco: 100 g','Batata-doce: 160 g','Batata inglesa: 240 g','Macarrão cozido: 80 g','Cuscuz: 110 g']},
+   {name:'Azeite de oliva',qty:'1 col. chá (5 ml)'}]},
+  {label:'Omelete',kcal:425,p:37,c:30,f:17,items:[
+   {name:'Omelete',qty:'3 ovos inteiros + 3 claras',note:'Frigideira antiaderente, sem óleo ou com um fio',subs:['Recheio: 30 g de queijo minas frescal no lugar de 1 ovo inteiro']},
+   {name:'Legumes refogados',qty:'150 g',note:'Tomate, cebola, espinafre, abobrinha…',subs:['Salada de folhas à vontade']},
+   {name:'Pão de forma integral',qty:'2 fatias (50 g)',subs:['1 pão francês (50 g)','Mandioca cozida: 100 g']}]}]},
+ {id:'ceia',name:'Ceia',time:'22:00',variants:[
+  {label:'Ovos',kcal:260,p:18,c:13,f:15,items:[
+   {name:'Ovo de galinha cozido',qty:'2 unidades',subs:['Queijo cottage: 100 g']},
+   {name:'Pão de forma integral',qty:'1 fatia (25 g)'},
+   {name:'Pasta de amendoim integral',qty:'10 g (1 col. chá cheia)',note:'Metade da porção original'}]},
+  {label:'Iogurte',kcal:250,p:27,c:17,f:6,items:[
+   {name:'Iogurte grego zero',qty:'1 pote (100 g)',subs:['Iogurte natural desnatado: 170 g']},
+   {name:'Whey protein concentrado',qty:'½ scoop (15 g)'},
+   {name:'Aveia em flocos',qty:'1 col. sopa cheia (15 g)'},
+   {name:'Pasta de amendoim integral',qty:'10 g (1 col. chá cheia)'}]},
+  {label:'Leite',kcal:250,p:34,c:21,f:2,items:[
+   {name:'Leite desnatado',qty:'200 ml'},
+   {name:'Whey protein concentrado',qty:'1 scoop (~30 g)'},
+   {name:'Pão de forma integral',qty:'1 fatia (25 g)'}]}]}
+];
+
+MEALS.forEach(m=>{if(!m.variants){m.variants=[{label:'',kcal:m.kcal,p:m.p,c:m.c,f:m.f,items:m.items}]}});
+const VKEY='plano-corte-variantes';
+let picks={};
+try{picks=JSON.parse(localStorage.getItem(VKEY))||{}}catch(e){}
+const vIdx=m=>Math.min(picks[m.id]||0,m.variants.length-1);
+const V=m=>m.variants[vIdx(m)];
+function pickVariant(m,i){picks[m.id]=i;try{localStorage.setItem(VKEY,JSON.stringify(picks))}catch(e){}renderMeal();renderDay()}
+
+const $=id=>document.getElementById(id);
+const toMin=t=>{const [h,m]=t.split(':').map(Number);return h*60+m};
+const fmtDur=m=>m<60?`${m} min`:`${Math.floor(m/60)}h${m%60?String(m%60).padStart(2,'0'):''}`;
+const nowMin=(d=new Date())=>d.getHours()*60+d.getMinutes();
+const GRACE=45;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function whatsNext(now=new Date()){
+  const n=nowMin(now);
+  for(let i=0;i<MEALS.length;i++){
+    const t=toMin(MEALS[i].time);
+    if(n>=t && n<t+GRACE) return {i,label:'Agora'};
+    if(n<t) return {i,label:`Em ${fmtDur(t-n)}`};
+  }
+  return {i:0,label:`Amanhã · em ${fmtDur(toMin(MEALS[0].time)+1440-n)}`};
+}
+const isDone=m=>toMin(m.time)+GRACE<=nowMin();
+
+let current=whatsNext().i, userPicked=false;
+
+function renderSwitch(){
+  const nx=whatsNext().i;
+  $('switch').innerHTML=MEALS.map((m,i)=>{
+    const st=i===nx?'next':(isDone(m)?'done':'');
+    return `<button class="chip ${st}" role="tab" id="tab-${m.id}" aria-selected="${i===current}" data-i="${i}"><span class="t">${m.time}</span><span class="n">${m.name}</span></button>`;
+  }).join('');
+  $('switch').querySelectorAll('.chip').forEach(b=>b.onclick=()=>{userPicked=true;show(+b.dataset.i)});
+  const sel=$('switch').querySelector('[aria-selected="true"]');
+  if(sel) sel.scrollIntoView({block:'nearest',inline:'center',behavior:'smooth'});
+}
+
+function bar(o){
+  const kp=o.p*4,kc=o.c*4,kf=o.f*9,t=kp+kc+kf;
+  return {t,kp,kc,kf,html:`<div class="bar" aria-hidden="true"><i style="width:${kp/t*100}%;background:var(--m-p)"></i><i style="width:${kc/t*100}%;background:var(--m-c)"></i><i style="width:${kf/t*100}%;background:var(--m-f)"></i></div>`};
+}
+function macros(o){
+  const b=bar(o), pct=x=>Math.round(x/b.t*100);
+  return `<div class="macros">
+    <div class="mac"><span class="k"><i style="background:var(--m-p)"></i>Proteína</span><span class="v">${o.p} g<small>${pct(b.kp)}%</small></span></div>
+    <div class="mac"><span class="k"><i style="background:var(--m-c)"></i>Carboidrato</span><span class="v">${o.c} g<small>${pct(b.kc)}%</small></span></div>
+    <div class="mac"><span class="k"><i style="background:var(--m-f)"></i>Gordura</span><span class="v">${o.f} g<small>${pct(b.kf)}%</small></span></div>
+  </div>`;
+}
+
+function renderMeal(){
+  const m=MEALS[current], v=V(m), vi=vIdx(m);
+  $('mealTime').textContent=m.time;
+  $('mealTitle').textContent=m.name;
+  const nx=whatsNext();
+  $('status').textContent=nx.i===current?nx.label:'';
+  const seg=$('variants');
+  if(m.variants.length>1){
+    seg.hidden=false;
+    seg.innerHTML=m.variants.map((x,i)=>`<button role="radio" id="var-${m.id}-${i}" aria-checked="${i===vi}" data-i="${i}">${x.label}</button>`).join('');
+    seg.querySelectorAll('button').forEach(b=>b.onclick=()=>pickVariant(m,+b.dataset.i));
+  } else { seg.hidden=true; seg.innerHTML=''; }
+  $('sum').innerHTML=`<div class="kcal"><b>${v.kcal}</b><span>kcal</span></div>${bar(v).html}${macros(v)}`;
+  $('items').innerHTML=v.items.map((it,k)=>`
+    <div class="food">
+      <div class="name">${it.name}</div>
+      <div class="qty">${it.qty}</div>
+      ${it.note?`<div class="note">${it.note}</div>`:''}
+      ${it.subs?`<button class="swap" data-k="${k}">${ICON_SWAP}Substituir <span>${it.subs.length}</span></button>`:''}
+    </div>`).join('');
+  $('items').querySelectorAll('.swap').forEach(b=>b.onclick=()=>openSubs(v.items[+b.dataset.k]));
+}
+
+function renderDay(){
+  const sum=k=>MEALS.reduce((a,m)=>a+V(m)[k],0);
+  const tot={kcal:sum('kcal'),p:sum('p'),c:sum('c'),f:sum('f')};
+  const done=MEALS.filter(isDone);
+  const kDone=done.reduce((a,m)=>a+V(m).kcal,0);
+  $('day').innerHTML=`
+    <div class="day-row" style="margin-top:6px"><b>${kDone.toLocaleString('pt-BR')} <span>/ ${tot.kcal.toLocaleString('pt-BR')} kcal</span></b><span>${done.length} de ${MEALS.length} refeições pelo horário</span></div>
+    <div class="prog"><i style="width:${Math.min(100,kDone/tot.kcal*100)}%"></i></div>
+    <div class="label" style="margin-bottom:6px">Meta diária</div>
+    ${macros(tot)}`;
+}
+
+function openSubs(it){
+  $('sheetTitle').textContent=it.name;
+  $('sheetCur').textContent=`No plano: ${it.qty}`;
+  $('sheetOpts').innerHTML=it.subs.map(o=>`<li>${esc(o)}</li>`).join('');
+  const d=$('sheet'); if(d.showModal) d.showModal(); else d.setAttribute('open','');
+}
+function closeSubs(){const d=$('sheet');if(d.close)d.close();else d.removeAttribute('open')}
+$('sheetClose').onclick=closeSubs;
+$('sheet').addEventListener('click',e=>{if(e.target===e.currentTarget)closeSubs()});
+
+function show(i){current=(i+MEALS.length)%MEALS.length;renderSwitch();renderMeal()}
+
+function tick(){
+  const d=new Date();
+  $('clock').textContent=d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  const ds=d.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
+  $('today').textContent=ds.charAt(0).toUpperCase()+ds.slice(1);
+  if(!userPicked) current=whatsNext(d).i;
+  renderSwitch();renderMeal();renderDay();
+}
+
+$('prev').onclick=()=>{userPicked=true;show(current-1)};
+$('next').onclick=()=>{userPicked=true;show(current+1)};
+document.addEventListener('keydown',e=>{
+  if($('sheet').open)return;
+  if(e.key==='ArrowLeft'){userPicked=true;show(current-1)}
+  if(e.key==='ArrowRight'){userPicked=true;show(current+1)}
+});
+let sx=null,sy=null;
+$('main').addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY},{passive:true});
+$('main').addEventListener('touchend',e=>{
+  if(sx===null)return;
+  const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
+  if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5){userPicked=true;show(current+(dx<0?1:-1))}
+  sx=null;
+},{passive:true});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){userPicked=false;tick()}});
+
+tick();
+setInterval(tick,30000);
+</script>
+
+<script>
+if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js'))}
+const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+let deferred=null;
+addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;if(!standalone)document.getElementById('installBtn').style.display='block'});
+document.getElementById('installBtn').onclick=async()=>{if(!deferred)return;deferred.prompt();await deferred.userChoice;deferred=null;document.getElementById('installBtn').style.display='none'};
+if(/iphone|ipad|ipod/i.test(navigator.userAgent)&&!standalone)document.getElementById('iosTip').style.display='block';
+</script>
+</body>
+</html>
